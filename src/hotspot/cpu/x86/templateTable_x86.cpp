@@ -768,6 +768,7 @@ void TemplateTable::index_check_without_pop(Register array, Register index) {
 }
 
 void TemplateTable::iaload() {
+  __ rdtscp_into(rscratch1);
   transition(itos, itos);
   // rax: index
   // rdx: array
@@ -776,6 +777,10 @@ void TemplateTable::iaload() {
                     Address(rdx, rax, Address::times_4,
                             arrayOopDesc::base_offset_in_bytes(T_INT)),
                     noreg, noreg);
+  __ rdtscp_into(rscratch2);
+  __ subq(rscratch2, rscratch1);
+  __ addq(Address(r15_thread, Thread::iaload_time_offset()), rscratch2);
+  __ incrementq(Address(r15_thread, Thread::iaload_count_offset()));
 }
 
 void TemplateTable::laload() {
@@ -818,6 +823,7 @@ void TemplateTable::daload() {
 }
 
 void TemplateTable::aaload() {
+  __ rdtscp_into(rscratch1);
   transition(itos, atos);
   // rax: index
   // rdx: array
@@ -828,6 +834,10 @@ void TemplateTable::aaload() {
                       arrayOopDesc::base_offset_in_bytes(T_OBJECT)),
               rax,
               IS_ARRAY);
+  __ rdtscp_into(rscratch2);
+  __ subq(rscratch2, rscratch1);
+  __ addq(Address(r15_thread, Thread::aaload_time_offset()), rscratch2);
+  __ incrementq(Address(r15_thread, Thread::aaload_count_offset()));
 }
 
 void TemplateTable::baload() {

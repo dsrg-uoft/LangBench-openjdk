@@ -9978,3 +9978,33 @@ void MacroAssembler::get_thread(Register thread) {
 }
 
 #endif
+
+void MacroAssembler::rdtscp_into(Register dst) {
+  push(rax);
+  push(rcx);
+  push(rdx);
+  rdtscp();
+  shlq(rdx, 32);
+  orq(rax, rdx);
+  movq(dst, rax);
+  pop(rdx);
+  pop(rcx);
+  pop(rax);
+}
+
+void MacroAssembler::rdpmc_into(Register dst, int code) {
+  push(rax);
+  push(rbx);
+  push(rcx);
+  push(rdx);
+  cpuid();
+  movl(rcx, code);
+  rdpmc();
+  shlq(rdx, 32);
+  orq(rax, rdx);
+  movq(dst, rax);
+  pop(rdx);
+  pop(rcx);
+  pop(rbx);
+  pop(rax);
+}

@@ -58,6 +58,23 @@
 // no precompiled headers
 #ifdef CC_INTERP
 
+static inline uint64_t rdtscp() {
+    uint64_t lo, hi;
+    __asm__ volatile ("rdtscp"
+        : /* outputs */ "=a" (lo), "=d" (hi)
+        : /* no inputs */
+        : /* clobbers */ "%rcx");
+    return lo | (hi << 32);
+}
+
+static inline uint64_t rdpmc() {
+  uint64_t lo, hi;
+  uint32_t code = 1 << 30;
+  __asm__ volatile ("cpuid" : : : "%rax","%rbx","%rcx","%rdx");
+  __asm__ volatile ("rdpmc" : "=a" (lo), "=d" (hi) : "c" (code));
+  return lo | (hi << 32);
+}
+
 /*
  * USELABELS - If using GCC, then use labels for the opcode dispatching
  * rather -then a switch statement. This improves performance because it
@@ -237,6 +254,26 @@
 #undef UPDATE_PC_AND_TOS_AND_CONTINUE
 #ifdef USELABELS
 #define UPDATE_PC_AND_TOS_AND_CONTINUE(opsize, stack) {         \
+        pc += opsize; opcode = *pc; MORE_STACK(stack);          \
+        DO_UPDATE_INSTRUCTION_COUNT(opcode);                    \
+        DEBUGGER_SINGLE_STEP_NOTIFY();                          \
+        DISPATCH(opcode);                                       \
+    }
+
+#define TIME_AALOAD_UPDATE_PC_AND_TOS_AND_CONTINUE(opsize, stack) {         \
+        uint64_t t1 = rdtscp();                                  \
+        THREAD->aaload_time += t1 - t0;                         \
+        THREAD->aaload_count++;                                 \
+        pc += opsize; opcode = *pc; MORE_STACK(stack);          \
+        DO_UPDATE_INSTRUCTION_COUNT(opcode);                    \
+        DEBUGGER_SINGLE_STEP_NOTIFY();                          \
+        DISPATCH(opcode);                                       \
+    }
+
+#define TIME_IALOAD_UPDATE_PC_AND_TOS_AND_CONTINUE(opsize, stack) {         \
+        uint64_t t1 = rdtscp();                                  \
+        THREAD->iaload_time += t1 - t0;                         \
+        THREAD->iaload_count++;                                 \
         pc += opsize; opcode = *pc; MORE_STACK(stack);          \
         DO_UPDATE_INSTRUCTION_COUNT(opcode);                    \
         DEBUGGER_SINGLE_STEP_NOTIFY();                          \
@@ -1660,6 +1697,15 @@ run:
           UPDATE_PC_AND_TOS_AND_CONTINUE(1, -1);                                      \
       }
 
+#define TIME_IALOAD_ARRAY_LOADTO32(T, T2, format, stackRes, extra)                                \
+      {                                                                               \
+          ARRAY_INTRO(-2);                                                            \
+          (void)extra;                                                                \
+          SET_ ## stackRes(*(T2 *)(((address) arrObj->base(T)) + index * sizeof(T2)), \
+                           -2);                                                       \
+          TIME_IALOAD_UPDATE_PC_AND_TOS_AND_CONTINUE(1, -1);                          \
+      }
+
       /* 64-bit loads */
 #define ARRAY_LOADTO64(T,T2, stackRes, extra)                                              \
       {                                                                                    \
@@ -1670,13 +1716,17 @@ run:
       }
 
       CASE(_iaload):
-          ARRAY_LOADTO32(T_INT, jint,   "%d",   STACK_INT, 0);
+          uint64_t t0 = rdtscp();
+          //ARRAY_LOADTO32(T_INT, jint,   "%d",   STACK_INT, 0);
+          TIME_IALOAD_ARRAY_LOADTO32(T_INT, jint,   "%d",   STACK_INT, 0);
       CASE(_faload):
           ARRAY_LOADTO32(T_FLOAT, jfloat, "%f",   STACK_FLOAT, 0);
       CASE(_aaload): {
+          uint64_t t0 = rdtscp();
           ARRAY_INTRO(-2);
           SET_STACK_OBJECT(((objArrayOop) arrObj)->obj_at(index), -2);
-          UPDATE_PC_AND_TOS_AND_CONTINUE(1, -1);
+          //UPDATE_PC_AND_TOS_AND_CONTINUE(1, -1);
+          TIME_AALOAD_UPDATE_PC_AND_TOS_AND_CONTINUE(1, -1);
       }
       CASE(_baload):
           ARRAY_LOADTO32(T_BYTE, jbyte,  "%d",   STACK_INT, 0);
