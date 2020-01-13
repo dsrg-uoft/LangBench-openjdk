@@ -1790,6 +1790,9 @@ public:
   void byte_array_inflate(Register src, Register dst, Register len,
                           XMMRegister tmp1, Register tmp2);
 
+ public:
+  void rdtscp_into(Register dst);
+  void rdpmc_into(Register dst, int code);
 };
 
 /**

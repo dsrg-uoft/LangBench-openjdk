@@ -1783,6 +1783,8 @@ private:
   void rcpss(XMMRegister dst, XMMRegister src);
 
   void rdtsc();
+  void rdtscp();
+  void rdpmc();
 
   void ret(int imm16);
 

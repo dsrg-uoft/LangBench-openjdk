@@ -786,6 +786,11 @@ protected:
 
   static ByteSize allocated_bytes_offset()       { return byte_offset_of(Thread, _allocated_bytes); }
 
+  static ByteSize aaload_time_offset() { return byte_offset_of(Thread, aaload_time); }
+  static ByteSize aaload_count_offset() { return byte_offset_of(Thread, aaload_count); }
+  static ByteSize iaload_time_offset() { return byte_offset_of(Thread, iaload_time); }
+  static ByteSize iaload_count_offset() { return byte_offset_of(Thread, iaload_count); }
+
   JFR_ONLY(DEFINE_THREAD_LOCAL_OFFSET_JFR;)
 
  public:
@@ -810,6 +815,11 @@ protected:
   static void muxAcquire(volatile intptr_t * Lock, const char * Name);
   static void muxAcquireW(volatile intptr_t * Lock, ParkEvent * ev);
   static void muxRelease(volatile intptr_t * Lock);
+
+  long aaload_time;
+  long aaload_count;
+  long iaload_time;
+  long iaload_count;
 };
 
 // Inline implementation of Thread::current()

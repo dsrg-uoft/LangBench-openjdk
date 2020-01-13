@@ -169,6 +169,23 @@ void universe_post_module_init();  // must happen after call_initPhase2
 THREAD_LOCAL_DECL Thread* Thread::_thr_current = NULL;
 #endif
 
+static inline uint64_t rdtscp() {
+    uint64_t lo, hi;
+    __asm__ volatile ("rdtscp"
+            : /* outputs */ "=a" (lo), "=d" (hi)
+            : /* no inputs */
+            : /* clobbers */ "%rcx");
+    return lo | (hi << 32);
+}
+
+static inline uint64_t rdpmc() {
+  uint64_t lo, hi;
+  __asm__ volatile ("cpuid" : : : "%rax","%rbx","%rcx","%rdx");
+  uint32_t code = 1 << 30;
+  __asm__ volatile ("rdpmc" : "=a" (lo), "=d" (hi) : "c" (code));
+  return lo | (hi << 32);
+}
+
 // ======= Thread ========
 // Support for forcing alignment of thread objects for biased locking
 void* Thread::allocate(size_t size, bool throw_excpt, MEMFLAGS flags) {
@@ -217,6 +234,11 @@ void JavaThread::smr_delete() {
 DEBUG_ONLY(Thread* Thread::_starting_thread = NULL;)
 
 Thread::Thread() {
+
+  this->aaload_time = 0;
+  this->aaload_count = 0;
+  this->iaload_time = 0;
+  this->iaload_count = 0;
 
   DEBUG_ONLY(_run_state = PRE_CALL_RUN;)
 
@@ -480,6 +502,18 @@ Thread::~Thread() {
   }
 
   CHECK_UNHANDLED_OOPS_ONLY(if (CheckUnhandledOops) delete unhandled_oops();)
+
+  uint64_t t0 = rdtscp();
+  uint64_t t1 = rdtscp();
+  uint64_t i0 = rdpmc();
+  uint64_t i1 = rdpmc();
+  uint64_t d = t1 - t0;
+  uint64_t aaload_overhead = aaload_count * d;
+  uint64_t iaload_overhead = iaload_count * d;
+  printf("rdtscp | time: %lu aaload: %lu iaload: %lu\n", d, aaload_overhead, iaload_overhead);
+  printf("rdpmc  | instructions: %lu (%lu, %lu)\n", i1 - i0, i1, i0);
+  printf("aaload | time: %lu count: %lu average: %.3f\n", aaload_time, aaload_count, (double) aaload_time / aaload_count);
+  printf("iaload | time: %lu count: %lu average: %.3f\n", iaload_time, iaload_count, (double) iaload_time / iaload_count);
 }
 
 #ifdef ASSERT
